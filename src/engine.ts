@@ -113,9 +113,10 @@ export class ReviewSession {
     try {
       this.onProgress("Preparing the comparison engine");
       const root = new URL(import.meta.env.BASE_URL, location.href);
-      this.worker = new Worker(new URL("vendor/duckdb-browser-mvp.worker.js", root));
+      this.worker = new Worker(new URL("duckdb-worker.js", root));
       this.worker.addEventListener("error", event => {
         event.preventDefault();
+        event.stopImmediatePropagation();
         this.halt(new ReviewError("The comparison engine stopped. Reload the app and try again."));
       });
       this.db = new duckdb.AsyncDuckDB(new duckdb.VoidLogger(), this.worker);

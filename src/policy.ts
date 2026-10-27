@@ -20,7 +20,10 @@ export function validateHeaders(headers: string[]): string[] {
 }
 
 export function parseHeader(text: string): string[] {
-  const result = Papa.parse<string[]>(text, {
+  const boundary = text.search(/[\r\n]/);
+  const header = text.slice(0, boundary < 0 ? text.length : boundary);
+  if (header.length > 65_536) throw new ReviewError("The raw header exceeds the 64 KiB limit.");
+  const result = Papa.parse<string[]>(header, {
     delimiter: ",", quoteChar: '"', escapeChar: '"', header: false,
     dynamicTyping: false, skipEmptyLines: false, preview: 1,
   });
