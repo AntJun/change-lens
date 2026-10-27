@@ -56,7 +56,7 @@ function valueCell(cell: Cell) {
 }
 
 function keyPreview(row: ReviewRow): string {
-  return row.key.map((value) => value === null ? "NULL" : value === "" ? "(empty)" : value).join(" / ");
+  return JSON.stringify(row.key);
 }
 
 function rowReference(row: ReviewRow, side: Side): string {
@@ -425,7 +425,7 @@ export default function App() {
               <div className="evidence-context"><p className="evidence-key">{keyPreview(detail.row)}</p>
                 <button className="button button-secondary button-small" onClick={() => { download(detail, "change-lens-row-evidence.json"); setStatus("Selected row evidence exported with cell values."); }}>Export row evidence<span aria-hidden="true">{"\u2193"}</span></button></div>
               {detail.row.kind === "ambiguous" ? <div className="ambiguous-evidence"><p className="evidence-explanation">This key has repeated records. Review its source members individually.</p>
-                <p className="member-count">{detail.truncated ? "Showing the first " + detail.members.length + " of " + number.format(detail.memberTotal) + " source records." : number.format(detail.memberTotal) + " source records in this group."}</p>
+                <p className="member-count">{detail.truncated ? "Showing " + detail.members.length + " of " + number.format(detail.memberTotal) + " source records." : number.format(detail.memberTotal) + " source records in this group."}</p>
                 {detail.members.map((member, index) => <details className="member-record" key={member.side + "-" + member.row} open={index === 0}>
                   <summary><span className={"side-label side-" + member.side}>{member.side}</span> Record #{member.row}</summary>
                   <dl>{member.cells.map((cell) => <div key={cell.name}><dt>{cell.name}</dt><dd>{valueCell({ present: true, value: cell.value })}</dd></div>)}</dl></details>)}

@@ -151,10 +151,10 @@ test("constructed example exposes exact changes and separate identity findings",
   await runComparison(page);
   const summary = await downloadJSON<ReviewSummary>(page, "Export summary");
   expect(summary.counts).toEqual(demoCounts);
-  await expect(page.getByText("Counts reconciled", { exact: true })).toBeVisible();
+  await expect(page.locator(".reconciled-label")).toBeVisible();
 
   await page.getByLabel("Show", { exact: true }).selectOption("changed");
-  const row = page.getByRole("row").filter({ has: page.getByRole("rowheader", { name: "A-100 / west", exact: true }) });
+  const row = page.getByRole("row").filter({ has: page.getByRole("rowheader", { name: '["A-100","west"]', exact: true }) });
   await row.getByRole("button", { name: /Inspect changed key/ }).click();
   const detail = await downloadJSON<RowDetail>(page, "Export row evidence");
   expect(detail.row.beforeRow).toBe(2);
@@ -166,7 +166,7 @@ test("constructed example exposes exact changes and separate identity findings",
   await expect(page.locator(".detail-table .cell-value").filter({ hasText: "Restock" })).toHaveText("Restock\narrived");
 
   await page.getByLabel("Show", { exact: true }).selectOption("ambiguous");
-  await page.getByRole("button", { name: /Inspect ambiguous key DUP-500/ }).click();
+  await page.getByRole("button", { name: /Inspect ambiguous key \["DUP-500"/ }).click();
   const ambiguous = await downloadJSON<RowDetail>(page, "Export row evidence");
   expect(ambiguous.columns).toEqual([]);
   expect(ambiguous.memberTotal).toBe(3);
@@ -189,7 +189,7 @@ test("row evidence distinguishes missing fields, null, empty text, and whitespac
   const after = csv(["id", "value", "added", "spaces"], [["a", "", "after only", "padded"]]);
   await importPair(page, before, after, ["id"], "marker");
   await runComparison(page);
-  await page.getByRole("button", { name: /Inspect changed key a$/ }).click();
+  await page.getByRole("button", { name: /Inspect changed key \["a"\]$/ }).click();
   const table = page.locator(".detail-table");
   const value = table.getByRole("row").filter({ has: page.getByRole("rowheader", { name: "value", exact: true }) });
   await expect(value.getByRole("cell")).toHaveText(["NULL", "Empty text"]);
@@ -339,7 +339,7 @@ test("summary excludes cell values and hostile markup remains text", async ({ pa
   await runComparison(page);
   const summary = await downloadJSON<ReviewSummary>(page, "Export summary");
   expect(JSON.stringify(summary).includes(value)).toBe(false);
-  await page.getByRole("button", { name: /Inspect changed key a$/ }).click();
+  await page.getByRole("button", { name: /Inspect changed key \["a"\]$/ }).click();
   const content = page.locator(".detail-table .cell-value").filter({ hasText: value });
   await expect(content).toHaveText(value);
   await expect(page.locator(".detail-table img, .detail-table script")).toHaveCount(0);
@@ -409,19 +409,19 @@ test("result pages are bounded and preserve deterministic ordering", async ({ pa
   await runComparison(page);
   const body = page.locator(".review-table tbody");
   await expect(body.locator("tr")).toHaveCount(50);
-  await expect(body.getByRole("rowheader").first()).toHaveText("id000");
-  await expect(body.getByRole("rowheader").last()).toHaveText("id049");
+  await expect(body.getByRole("rowheader").first()).toHaveText('["id000"]');
+  await expect(body.getByRole("rowheader").last()).toHaveText('["id049"]');
   await expect(page.getByRole("button", { name: "Previous", exact: true })).toBeDisabled();
   await page.getByRole("button", { name: "Next", exact: true }).click();
-  await expect(body.getByRole("rowheader").first()).toHaveText("id050");
-  await expect(body.getByRole("rowheader").last()).toHaveText("id099");
+  await expect(body.getByRole("rowheader").first()).toHaveText('["id050"]');
+  await expect(body.getByRole("rowheader").last()).toHaveText('["id099"]');
   await expect(body.locator("tr")).toHaveCount(50);
   await page.getByRole("button", { name: "Next", exact: true }).click();
-  await expect(body.getByRole("rowheader").first()).toHaveText("id100");
+  await expect(body.getByRole("rowheader").first()).toHaveText('["id100"]');
   await expect(body.locator("tr")).toHaveCount(25);
   await expect(page.getByRole("button", { name: "Next", exact: true })).toBeDisabled();
   await page.getByRole("button", { name: "Previous", exact: true }).click();
-  await expect(body.getByRole("rowheader").first()).toHaveText("id050");
+  await expect(body.getByRole("rowheader").first()).toHaveText('["id050"]');
 });
 
 for (const item of [
@@ -438,7 +438,7 @@ for (const item of [
       unkeyedBefore: item.unkeyed, unkeyedAfter: item.unkeyed,
     });
     await page.getByLabel("Show", { exact: true }).selectOption("unchanged");
-    await page.getByRole("button", { name: /Inspect unchanged key b$/ }).click();
+    await page.getByRole("button", { name: /Inspect unchanged key \["b"\]$/ }).click();
     const evidence = await downloadJSON<RowDetail>(page, "Export row evidence");
     expect(evidence.row.beforeRow).toBe(item.ordinal);
     expect(evidence.row.afterRow).toBe(item.ordinal);
@@ -451,7 +451,7 @@ test("ambiguous member evidence stays bounded and includes both sources", async 
   await importPair(page, csv(["id", "value"], before), csv(["id", "value"], after), ["id"]);
   await runComparison(page);
   await page.getByLabel("Show", { exact: true }).selectOption("ambiguous");
-  await page.getByRole("button", { name: /Inspect ambiguous key duplicate$/ }).click();
+  await page.getByRole("button", { name: /Inspect ambiguous key \["duplicate"\]$/ }).click();
   const evidence = await downloadJSON<RowDetail>(page, "Export row evidence");
   expect(evidence.memberTotal).toBe(150);
   expect(evidence.members).toHaveLength(50);
@@ -459,7 +459,7 @@ test("ambiguous member evidence stays bounded and includes both sources", async 
   expect(evidence.columns).toEqual([]);
   expect(evidence.members.some(member => member.side === "before")).toBe(true);
   expect(evidence.members.some(member => member.side === "after")).toBe(true);
-  await expect(page.getByText("Showing the first 50 of 150 source records.", { exact: true })).toBeVisible();
+  await expect(page.getByText("Showing 50 of 150 source records.", { exact: true })).toBeVisible();
   await expect(page.locator(".member-record")).toHaveCount(50);
 });
 
@@ -527,4 +527,17 @@ test("50,000-row browser benchmark records actual results and responsiveness", a
   };
   await mkdir("artifacts", { recursive: true });
   await writeFile("artifacts/benchmark.json", JSON.stringify(evidence, null, 2) + "\n", "utf8");
+});
+
+test("composite key previews preserve tuple boundaries", async ({ page }) => {
+  const text = csv(["first", "second", "value"], [
+    ["a / b", "c", "same"], ["a", "b / c", "same"],
+  ]);
+  await importPair(page, text, text, ["first", "second"]);
+  await runComparison(page);
+  await page.getByLabel("Show", { exact: true }).selectOption("unchanged");
+  const keys = await page.locator(".review-table tbody").getByRole("rowheader").allTextContents();
+  expect(new Set(keys).size).toBe(2);
+  expect(keys).toContain('["a / b","c"]');
+  expect(keys).toContain('["a","b / c"]');
 });

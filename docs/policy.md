@@ -12,6 +12,8 @@ Exact duplicate, empty, whitespace-only, control-character, or oversized names a
 Names that differ only by case remain separate fields. The parser receives only a bounded
 first physical header line. Quoted multiline header names are rejected.
 
+A separate worker performs step-based structural validation with Papa Parse and enforces
+data limits. Its parsed data-record count must agree with the database reader.
 DuckDB parses the complete registered file against an explicit all-text schema with
 strict widths and quoting. The first parsed record supplies the header and is excluded
 from data. Invalid UTF-8 and malformed CSV fail the operation.
@@ -29,7 +31,8 @@ string, numeric, date, or boolean conversion occurs.
 
 The selected column names must exist on both sides. A composite key is an ordered tuple
 of its component values. Components are grouped separately; delimiters inside values
-cannot create a collision between different tuples.
+cannot create a collision between different tuples. The interface displays keys as
+JSON-quoted arrays so component boundaries and literal null-like text remain visible.
 
 If any component is null or empty text, that record is unkeyed.
 

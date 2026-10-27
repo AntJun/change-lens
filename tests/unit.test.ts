@@ -108,3 +108,25 @@ test("page filters and bounds preserve the complete result total", () => {
   assert.throws(() => boundedPage(-1, 100));
   assert.throws(() => filterTotal(counts, "invalid"));
 });
+
+test("structural preflight rejects missing and trailing closing-quote errors", async () => {
+  const { validateCSV } = await import("../src/validate.ts");
+  for (const text of ['id,value\na,"unclosed\n', 'id,value\na,"closed"junk\n', "id,value\na,one,extra\n"]) {
+    assert.equal(validateCSV(text, ["id", "value"]).ok, false);
+  }
+});
+
+test("structural preflight preserves multiline data and parsed blank-record semantics", async () => {
+  const { validateCSV } = await import("../src/validate.ts");
+  assert.deepEqual(validateCSV('id,value\n"a\nb",one\n', ["id", "value"]), { ok: true, rows: 1 });
+  assert.deepEqual(validateCSV("id,value\na,one\n\nb,two\n", ["id", "value"]), { ok: true, rows: 2 });
+  assert.deepEqual(validateCSV("id\na\n\nb\n", ["id"]), { ok: true, rows: 3 });
+  assert.deepEqual(validateCSV("id,value\n", ["id", "value"]), { ok: true, rows: 0 });
+  assert.deepEqual(validateCSV('id\n""\n', ["id"]), { ok: true, rows: 1 });
+});
+
+test("structural preflight aborts data outside row and field bounds", async () => {
+  const { validateCSV } = await import("../src/validate.ts");
+  assert.deepEqual(validateCSV("id\n" + "a\n".repeat(LIMITS.rows + 1), ["id"]), { ok: false, code: "rows" });
+  assert.deepEqual(validateCSV("id\n" + "a".repeat(LIMITS.fieldChars + 1) + "\n", ["id"]), { ok: false, code: "field" });
+});

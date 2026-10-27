@@ -1,5 +1,6 @@
 import * as duckdb from "@duckdb/duckdb-wasm";
 import { ReviewError, filterTotal, validateKeys } from "./policy.ts";
+import type { ValidationResult } from "./validate.ts";
 import { boundedPage, createPlan, rawImport, validateCounts, type Plan } from "./sql.ts";
 import {
   LIMITS, type Cell, type Counts, type Filter, type Kind, type NullMode,
@@ -29,6 +30,8 @@ function valueCell(row: SQLRow | undefined, headers: string[], name: string): Ce
 
 export class ReviewSession {
   private worker?: Worker;
+  private validator?: Worker;
+  private validationId = 0;
   private db?: duckdb.AsyncDuckDB;
   private connection?: duckdb.AsyncDuckDBConnection;
   private stopped = false;
@@ -51,6 +54,8 @@ export class ReviewSession {
     clearTimeout(this.wholeTimer);
     this.rejectStop(reason);
     this.worker?.terminate();
+    this.validator?.terminate();
+    this.validator = undefined;
     if (this.db) void this.db.terminate().catch(() => {});
     this.connection = undefined;
     this.db = undefined;
@@ -82,11 +87,39 @@ export class ReviewSession {
     return table.toArray().map(row => row.toJSON() as SQLRow);
   }
 
+  private async preflight(input: SnapshotInput): Promise<number> {
+    if (!this.validator) {
+      this.validator = new Worker(new URL("./validate.worker.ts", import.meta.url), { type: "module" });
+      this.validator.addEventListener("error", event => {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        this.halt(new ReviewError("CSV validation stopped. Start a new comparison."));
+      });
+    }
+    const worker = this.validator;
+    const id = ++this.validationId;
+    let listener!: (event: MessageEvent<ValidationResult & { id: number }>) => void;
+    const result = new Promise<ValidationResult>(resolve => {
+      listener = event => { if (event.data.id === id) resolve(event.data); };
+      worker.addEventListener("message", listener);
+      const bytes = input.bytes.slice();
+      worker.postMessage({ id, bytes, headers: input.headers }, [bytes.buffer]);
+    });
+    try {
+      const outcome = await this.wait(result);
+      if (!outcome.ok) throw new ReviewError("The CSV structure, record widths, or data limits are invalid.");
+      return integer(outcome.rows);
+    } finally {
+      worker.removeEventListener("message", listener);
+    }
+  }
+
   private async importSnapshot(side: Side, input: SnapshotInput): Promise<number> {
     if (!this.db) throw new ReviewError("The comparison engine is unavailable.");
     if (!input.bytes.byteLength || input.bytes.byteLength > LIMITS.fileBytes) {
       throw new ReviewError("Choose a nonempty CSV file of at most 8 MiB.");
     }
+    const validatedRows = await this.preflight(input);
     // The database transfers this buffer; keep the original reusable for another policy.
     await this.wait(this.db.registerFileBuffer(side + ".csv", input.bytes.slice()));
     await this.query(rawImport(side, input.headers.length));
@@ -95,6 +128,7 @@ export class ReviewSession {
       + "coalesce(max(greatest(" + fields.join(", ") + ")),0)::INTEGER AS largest "
       + "FROM raw_" + side + " WHERE rid>0");
     const rows = integer(facts.rows);
+    if (rows !== validatedRows) throw new ReviewError("The CSV parsers disagree about data-record boundaries.");
     if (rows > LIMITS.rows || rows * input.headers.length > LIMITS.cells
         || integer(facts.largest) > LIMITS.fieldChars) {
       throw new ReviewError("Snapshot limits are 100,000 rows, 1,000,000 cells, and 16,384 characters per field.");
@@ -135,7 +169,7 @@ export class ReviewSession {
       // All subsequent queries use imported tables and generated identifiers only.
       await this.query("SET enable_external_access=false");
       this.plan = createPlan(before.headers, after.headers, keys, nullMode);
-      this.onProgress("Reconciling keys and committed row values");
+      this.onProgress("Comparing row identities and values");
       for (const sql of this.plan.statements) await this.query(sql);
       const counts: Counts = {
         beforeRows, afterRows, changed: 0, added: 0, removed: 0, unchanged: 0,

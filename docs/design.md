@@ -3,7 +3,9 @@
 ~~~text
 File controls -> bounded UTF-8/header checks -> SHA-256 of original bytes
                                    |
-React session owner -> quiet classic worker -> DuckDB-WASM in-memory tables
+React session owner -> structural validation worker
+                                   |
+                    quiet classic worker -> DuckDB-WASM in-memory tables
                                    |
                     strict CSV -> explicit keys -> category counts
                                    |
@@ -12,8 +14,8 @@ React session owner -> quiet classic worker -> DuckDB-WASM in-memory tables
 
 The interface owns input-read tokens, a comparison revision, and independent page/detail
 generations. A later input, policy, clear, or cancellation invalidates older asynchronous
-results. The engine session owns its worker and abort promise. Disposing it terminates
-the worker and settles the app-facing cancellation path even when the upstream SDK
+results. The engine session owns its database worker, validation worker, and abort promise. Disposing it terminates
+both workers and settles the app-facing cancellation path even when the upstream SDK
 leaves terminated tasks unresolved.
 
 The 45-second comparison deadline covers engine startup, CSV import, queries, and
@@ -22,7 +24,9 @@ Input byte, column, row, cell, field, key, and result-page limits constrain work
 
 ## Parsing and SQL boundaries
 
-Papa Parse reads the bounded first physical header line. The application rejects header
+Papa Parse reads the bounded first physical header line. An owned validation worker
+also performs step-based structural validation before database import, enforcing
+record widths and data limits. Its record count must agree with DuckDB. The application rejects header
 controls and invalid identities before comparison. DuckDB parses the entire file with
 an explicit positional VARCHAR schema, strict record widths, and forced non-null text.
 

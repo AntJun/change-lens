@@ -16,7 +16,8 @@ Repeated keys form separate ambiguity groups. Empty or null key components produ
 unkeyed rows. Every input row belongs to an accounted category.
 
 React and TypeScript provide the interface. DuckDB-WASM supplies CSV parsing and
-comparison queries in a dedicated worker. All runtime assets are hosted with the app.
+comparison queries in a dedicated worker. A separate Papa Parse worker checks strict
+structure and data bounds before database import. All runtime assets are hosted with the app.
 
 Maintained by [AntJun](https://github.com/AntJun). MIT licensed.
 
@@ -76,7 +77,7 @@ references and workers; browser memory reclamation follows the browser's lifecyc
 | Key columns | 1-8 |
 | Result page | 50 rows or key groups |
 | Ambiguous evidence | At most 50 source members, with total and truncation stated |
-| Operation deadline | 45 seconds |
+| Comparison deadline and each inspection query | 45 seconds |
 
 CSV uses UTF-8, commas, double-quoted fields, doubled quote escapes, and consistent
 record widths. Malformed records fail the comparison. The tool uses an engine memory
