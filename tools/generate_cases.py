@@ -154,10 +154,10 @@ def small_cases():
             [["a", "same", "updated"], ["b", "other", "same"]], ["id"]),
         make_case(
             "headers_are_data",
-            ["id", "select; DROP TABLE review; --", 'quote"field', "line\nheader"],
-            [["a", "old", "quoted", "multiline"], ["b", "stable", "same", "same"]],
-            ["id", "select; DROP TABLE review; --", 'quote"field', "line\nheader"],
-            [["a", "new", "quoted", "multiline"], ["b", "stable", "same", "same"]], ["id"]),
+            ["id", "select; DROP TABLE review; --", 'quote"field', "comma,field;"],
+            [["a", "old", "quoted", "multi\nline"], ["b", "stable", "same", "same"]],
+            ["id", "select; DROP TABLE review; --", 'quote"field', "comma,field;"],
+            [["a", "new", "quoted", "multi\nline"], ["b", "stable", "same", "same"]], ["id"]),
         make_case(
             "empty_and_marker_text_mode", ["id", "value"],
             [["a", ""], ["b", NULL_MARKER], ["c", "NULL"], ["d", "null"]],

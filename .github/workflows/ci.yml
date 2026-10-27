@@ -16,7 +16,7 @@ jobs:
   build:
     name: Type checks, policy tests, and production build
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -24,24 +24,40 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "24"
-      - name: Install pinned direct dependencies
-        run: npm install --ignore-scripts
-      - name: Record generated dependency lock
-        run: node tools/emit-lock.mjs
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
+      - name: Check dependency advisories
+        run: npm audit --audit-level=high
       - name: Policy and query-plan regression tests
         run: npm test
       - name: Build self-hosted application
         run: npm run build
       - name: Generate independent browser fixtures
         run: python3 tools/generate_cases.py
+      - name: Install browser engines
+        run: npx playwright install --with-deps chromium firefox
+      - name: Production browser correctness, privacy, and responsiveness tests
+        run: npm run test:browser
+      - name: Audit and publish measured evidence
+        run: |
+          mkdir -p artifacts/public
+          cp artifacts/benchmark.json artifacts/public/benchmark.json
+          python3 tools/audit_public.py artifacts/public
+          cp artifacts/benchmark.json dist/benchmark.json
+          node -e "console.log('CHANGE_LENS_BENCHMARK_START'); console.log(require('fs').readFileSync('artifacts/benchmark.json','utf8')); console.log('CHANGE_LENS_BENCHMARK_END')"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
         with:
-          name: production-build
+          name: validation-evidence
           path: |
-            dist
-            package-lock.json
-          retention-days: 7
-          if-no-files-found: error
+            artifacts/benchmark.json
+            test-results
+          retention-days: 14
+          if-no-files-found: ignore
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+        with:
+          path: dist
 
   security:
     name: Public data and full-history audit
@@ -61,3 +77,21 @@ jobs:
           GITLEAKS_ENABLE_COMMENTS: "false"
           GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
       - run: /tmp/gitleaks-8.30.1/gitleaks git --redact --log-opts="--all"
+
+  pages:
+    name: Publish verified workbench
+    if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+    needs: [build, security]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+      - uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+        id: deployment
