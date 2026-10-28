@@ -397,6 +397,7 @@ test("keyboard operation reaches controls and restores row inspection focus", as
   await page.keyboard.press("Enter");
   const pane = page.getByRole("complementary", { name: "Inspect the source records", exact: true });
   await expect(pane).toBeFocused();
+  await expect(pane).toBeInViewport({ ratio: 0.5 });
   await page.keyboard.press("Escape");
   await expect(page.locator("#row-evidence")).toHaveCount(0);
   await expect(inspect).toBeFocused();

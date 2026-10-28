@@ -259,7 +259,7 @@ export default function App() {
       setDetail(result);
       setStatus("Row evidence ready.");
       window.requestAnimationFrame(() => {
-        if (revision.current === token && details.current === query) evidencePane.current?.focus({ preventScroll: true });
+        if (revision.current === token && details.current === query) evidencePane.current?.focus();
       });
     } catch {
       if (session.current === active && revision.current === token && details.current === query) {
