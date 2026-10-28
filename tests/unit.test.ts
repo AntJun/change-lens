@@ -130,3 +130,14 @@ test("structural preflight aborts data outside row and field bounds", async () =
   assert.deepEqual(validateCSV("id\n" + "a\n".repeat(LIMITS.rows + 1), ["id"]), { ok: false, code: "rows" });
   assert.deepEqual(validateCSV("id\n" + "a".repeat(LIMITS.fieldChars + 1) + "\n", ["id"]), { ok: false, code: "field" });
 });
+
+test("parsed cell framing preserves Unicode lengths and component boundaries", async () => {
+  const { validateCSV } = await import("../src/validate.ts");
+  const frames: string[] = [];
+  const text = 'id,value\na,\ud83e\uddea:2\nb,\n';
+  const result = validateCSV(text, ["id", "value"], (values, lengths) => {
+    frames.push(values.map((value, index) => lengths[index] + ":" + value).join(""));
+  });
+  assert.deepEqual(result, { ok: true, rows: 2 });
+  assert.deepEqual(frames, ["1:a3:\ud83e\uddea:2", "1:b0:"]);
+});

@@ -4,7 +4,7 @@ import { LIMITS } from "./types.ts";
 export type ValidationCode = "csv" | "width" | "rows" | "cells" | "field" | "header";
 export type ValidationResult = { ok: true; rows: number } | { ok: false; code: ValidationCode };
 
-export function validateCSV(text: string, headers: string[]): ValidationResult {
+export function validateCSV(text: string, headers: string[], onRecord?: (values: string[], lengths: number[]) => void): ValidationResult {
   let rows = 0;
   let cursor = 0;
   let headerSeen = false;
@@ -33,13 +33,16 @@ export function validateCSV(text: string, headers: string[]): ValidationResult {
         rows++;
         if (rows > LIMITS.rows) return fail("rows");
         if (rows * headers.length > LIMITS.cells) return fail("cells");
+        const lengths: number[] = [];
         for (const value of result.data) {
           if (value.length > LIMITS.fieldChars * 2) return fail("field");
           let characters = 0;
           for (const _character of value) {
             if (++characters > LIMITS.fieldChars) return fail("field");
           }
+          lengths.push(characters);
         }
+        onRecord?.(result.data, lengths);
       },
     });
   } catch {

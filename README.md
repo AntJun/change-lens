@@ -17,7 +17,8 @@ unkeyed rows. Every input row belongs to an accounted category.
 
 React and TypeScript provide the interface. DuckDB-WASM supplies CSV parsing and
 comparison queries in a dedicated worker. A separate Papa Parse worker checks strict
-structure and data bounds before database import. All runtime assets are hosted with the app.
+structure and data bounds before database import. Both readers must agree on record
+counts and an ordered, length-framed SHA-256 digest of parsed cell values. All runtime assets are hosted with the app.
 
 Maintained by [AntJun](https://github.com/AntJun). MIT licensed.
 

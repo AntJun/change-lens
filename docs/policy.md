@@ -13,7 +13,9 @@ Names that differ only by case remain separate fields. The parser receives only 
 first physical header line. Quoted multiline header names are rejected.
 
 A separate worker performs step-based structural validation with Papa Parse and enforces
-data limits. Its parsed data-record count must agree with the database reader.
+data limits. Its parsed data-record count and ordered cell digest must agree with the
+database reader. Each digest frames every cell by its Unicode codepoint count and value,
+in record and column order. Ambiguous dialect interpretations fail the comparison.
 DuckDB parses the complete registered file against an explicit all-text schema with
 strict widths and quoting. The first parsed record supplies the header and is excluded
 from data. Invalid UTF-8 and malformed CSV fail the operation.

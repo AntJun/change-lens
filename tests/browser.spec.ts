@@ -505,7 +505,9 @@ test("50,000-row browser benchmark records actual results and responsiveness", a
   checkSummary(summary, payload.benchmark);
   expect(heartbeat.ticks, "The main-thread heartbeat must advance during the measurement.").toBeGreaterThan(0);
   expect(inputToSummaryMs).toBeLessThan(90_000);
-  expect(await page.locator(".review-table tbody tr").count()).toBeLessThanOrEqual(50);
+  const rendered = page.locator(".review-table tbody").getByRole("rowheader");
+  await expect(rendered).toHaveCount(50);
+  const renderedRows = await rendered.count();
   const commit = /^[a-f0-9]{40}$/i.test(process.env.GITHUB_SHA ?? "") ? process.env.GITHUB_SHA : null;
   const run = /^[0-9]+$/.test(process.env.GITHUB_RUN_ID ?? "") ? process.env.GITHUB_RUN_ID : null;
   const evidence = {
@@ -522,7 +524,8 @@ test("50,000-row browser benchmark records actual results and responsiveness", a
     inputToSummaryMs: Math.round(inputToSummaryMs * 10) / 10,
     heartbeatIntervalMs: 20,
     heartbeat,
-    maxRenderedRows: 50,
+    renderedRows,
+    pageSizeLimit: summary.limits.pageSize,
     limits: summary.limits,
   };
   await mkdir("artifacts", { recursive: true });
@@ -536,8 +539,33 @@ test("composite key previews preserve tuple boundaries", async ({ page }) => {
   await importPair(page, text, text, ["first", "second"]);
   await runComparison(page);
   await page.getByLabel("Show", { exact: true }).selectOption("unchanged");
-  const keys = await page.locator(".review-table tbody").getByRole("rowheader").allTextContents();
+  const headers = page.locator(".review-table tbody").getByRole("rowheader");
+  await expect(headers).toHaveCount(2);
+  const keys = await headers.allTextContents();
   expect(new Set(keys).size).toBe(2);
   expect(keys).toContain('["a / b","c"]');
   expect(keys).toContain('["a","b / c"]');
+});
+
+test("parser disagreement rejects ambiguous whitespace before a quote", async ({ page }) => {
+  const text = 'id,value\na, "padded"\n';
+  await importPair(page, text, text, ["id"]);
+  await page.getByRole("button", { name: "Compare snapshots", exact: true }).click();
+  await expect(page.getByRole("alert")).toBeVisible();
+  await expect(page.getByRole("alert")).toContainText("consistently quoted CSV");
+  await expect(page.getByRole("button", { name: "Export summary", exact: true })).toBeDisabled();
+});
+
+test("fully quoted whitespace and supplementary Unicode retain exact values", async ({ page }) => {
+  const before = csv(["id", "value"], [["a", ' "padded"'], ["b", "\ud83e\uddea:2"]]);
+  const after = csv(["id", "value"], [["a", ' "updated"'], ["b", "\ud83e\uddea:2"]]);
+  await importPair(page, before, after, ["id"]);
+  await runComparison(page);
+  const summary = await downloadJSON<ReviewSummary>(page, "Export summary");
+  expect(summary.counts.changed).toBe(1);
+  expect(summary.counts.unchanged).toBe(1);
+  await page.getByRole("button", { name: /Inspect changed key \["a"\]$/ }).click();
+  const evidence = await downloadJSON<RowDetail>(page, "Export row evidence");
+  expect(evidence.columns.find(column => column.name === "value")?.before.value).toBe(' "padded"');
+  expect(evidence.columns.find(column => column.name === "value")?.after.value).toBe(' "updated"');
 });

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { readSnapshot, ReviewSession } from "./engine";
+import { ReviewError } from "./policy";
 import { LIMITS } from "./types";
 import type { Cell, Filter, NullMode, ReviewPage, ReviewRow, ReviewSummary, RowDetail, Side, SnapshotInput } from "./types";
 
@@ -142,9 +143,9 @@ export default function App() {
       if (imports.current[side] !== token) return;
       setInputs((current) => ({ ...current, [side]: input }));
       setStatus("Snapshot loaded. Check the matching key, then compare.");
-    } catch {
+    } catch (error) {
       if (imports.current[side] === token) {
-        setError("This snapshot could not be read. Use a UTF-8, comma-separated CSV with unique, nonempty headers and check the size limits.");
+        setError(error instanceof ReviewError ? error.message : "This snapshot could not be read. Use a UTF-8, comma-separated CSV with unique, nonempty headers and check the size limits.");
         setStatus("A snapshot needs attention.");
       }
     } finally {
@@ -233,10 +234,10 @@ export default function App() {
       if (session.current !== active || revision.current !== token) return;
       setSummary(result);
       await loadPage("changes", 0, active, token);
-    } catch {
+    } catch (error) {
       if (session.current === active && revision.current === token) {
         invalidate("Comparison stopped. Your snapshots are ready to review again.");
-        setError("The comparison could not finish. Check the CSV structure and limits, then try again.");
+        setError(error instanceof ReviewError ? error.message : "The comparison could not finish. Check the CSV structure and limits, then try again.");
       }
     } finally {
       if (revision.current === token) setBusy(false);

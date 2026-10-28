@@ -26,7 +26,9 @@ Input byte, column, row, cell, field, key, and result-page limits constrain work
 
 Papa Parse reads the bounded first physical header line. An owned validation worker
 also performs step-based structural validation before database import, enforcing
-record widths and data limits. Its record count must agree with DuckDB. The application rejects header
+record widths and data limits. Its record count and a SHA-256 digest of length-framed
+parsed cells must agree with DuckDB. This detects differing interpretations of spaces
+around quotes without transferring raw values through validation responses. The application rejects header
 controls and invalid identities before comparison. DuckDB parses the entire file with
 an explicit positional VARCHAR schema, strict record widths, and forced non-null text.
 

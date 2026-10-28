@@ -87,7 +87,7 @@ export class ReviewSession {
     return table.toArray().map(row => row.toJSON() as SQLRow);
   }
 
-  private async preflight(input: SnapshotInput): Promise<number> {
+  private async preflight(input: SnapshotInput): Promise<{ rows: number; digest: string }> {
     if (!this.validator) {
       this.validator = new Worker(new URL("./validate.worker.ts", import.meta.url), { type: "module" });
       this.validator.addEventListener("error", event => {
@@ -98,8 +98,8 @@ export class ReviewSession {
     }
     const worker = this.validator;
     const id = ++this.validationId;
-    let listener!: (event: MessageEvent<ValidationResult & { id: number }>) => void;
-    const result = new Promise<ValidationResult>(resolve => {
+    let listener!: (event: MessageEvent<ValidationResult & { id: number; digest?: string }>) => void;
+    const result = new Promise<ValidationResult & { digest?: string }>(resolve => {
       listener = event => { if (event.data.id === id) resolve(event.data); };
       worker.addEventListener("message", listener);
       const bytes = input.bytes.slice();
@@ -108,7 +108,10 @@ export class ReviewSession {
     try {
       const outcome = await this.wait(result);
       if (!outcome.ok) throw new ReviewError("The CSV structure, record widths, or data limits are invalid.");
-      return integer(outcome.rows);
+      if (typeof outcome.digest !== "string" || !/^[a-f0-9]{64}$/.test(outcome.digest)) {
+        throw new ReviewError("CSV validation evidence is incomplete.");
+      }
+      return { rows: integer(outcome.rows), digest: outcome.digest };
     } finally {
       worker.removeEventListener("message", listener);
     }
@@ -119,7 +122,7 @@ export class ReviewSession {
     if (!input.bytes.byteLength || input.bytes.byteLength > LIMITS.fileBytes) {
       throw new ReviewError("Choose a nonempty CSV file of at most 8 MiB.");
     }
-    const validatedRows = await this.preflight(input);
+    const validated = await this.preflight(input);
     // The database transfers this buffer; keep the original reusable for another policy.
     await this.wait(this.db.registerFileBuffer(side + ".csv", input.bytes.slice()));
     await this.query(rawImport(side, input.headers.length));
@@ -128,10 +131,19 @@ export class ReviewSession {
       + "coalesce(max(greatest(" + fields.join(", ") + ")),0)::INTEGER AS largest "
       + "FROM raw_" + side + " WHERE rid>0");
     const rows = integer(facts.rows);
-    if (rows !== validatedRows) throw new ReviewError("The CSV parsers disagree about data-record boundaries.");
+    if (rows !== validated.rows) throw new ReviewError("The CSV parsers disagree about data-record boundaries.");
     if (rows > LIMITS.rows || rows * input.headers.length > LIMITS.cells
         || integer(facts.largest) > LIMITS.fieldChars) {
       throw new ReviewError("Snapshot limits are 100,000 rows, 1,000,000 cells, and 16,384 characters per field.");
+    }
+    const frame = input.headers.map((_, index) => {
+      const name = "c" + index;
+      return "length(" + name + ")::VARCHAR || ':' || " + name;
+    }).join(" || ");
+    const [parsed] = await this.query("SELECT sha256(coalesce(string_agg((" + frame
+      + "), '' ORDER BY rid), '')) AS digest FROM raw_" + side + " WHERE rid>0");
+    if (parsed.digest !== validated.digest) {
+      throw new ReviewError("File values could not be interpreted consistently. Export a consistently quoted CSV.");
     }
     return rows;
   }
