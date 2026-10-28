@@ -401,6 +401,7 @@ test("keyboard operation reaches controls and restores row inspection focus", as
   await page.keyboard.press("Escape");
   await expect(page.locator("#row-evidence")).toHaveCount(0);
   await expect(inspect).toBeFocused();
+  await expect(inspect).toBeInViewport({ ratio: 0.5 });
 });
 
 test("result pages are bounded and preserve deterministic ordering", async ({ page }) => {

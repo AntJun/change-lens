@@ -5,6 +5,7 @@
 **Review two CSV snapshots with explicit row identity and inspectable evidence.**
 
 [Open the workbench](https://www.antjun.com/change-lens/) |
+[Measured browser run](https://www.antjun.com/change-lens/benchmark.json) |
 [Comparison policy](docs/policy.md) |
 [Architecture](docs/design.md)
 
@@ -83,6 +84,18 @@ references and workers; browser memory reclamation follows the browser's lifecyc
 CSV uses UTF-8, commas, double-quoted fields, doubled quote escapes, and consistent
 record widths. Malformed records fail the comparison. The tool uses an engine memory
 setting of 256MB; the browser also holds input bytes and interface state.
+
+## Verification evidence
+
+CI runs the production application in Chromium and Firefox against 15 independently
+generated correctness cases and focused lifecycle, evidence, privacy, keyboard, and
+pagination regressions.
+
+The [published measurement](https://www.antjun.com/change-lens/benchmark.json) records a
+constructed 50,000-row before snapshot and 50,050-row after snapshot. It includes the
+actual browser/engine environment, complete category counts, measured elapsed times,
+main-thread heartbeat samples, rendered row count, source hashes, commit, and CI link.
+The method includes one warm-up comparison. Each result describes that measured run.
 
 ## Development
 
